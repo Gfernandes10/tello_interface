@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(tello_interface)
-
+message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -18,18 +18,31 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tello_msgs REQUIRED)
+find_package(action_msgs REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/SineCommand.srv"
+)
 
 add_executable(tello_interface_node src/tello_interface_node.cpp)
+add_dependencies(tello_interface_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 target_include_directories(tello_interface_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-
-target_link_libraries(tello_interface_node
-  rclcpp
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
+  $<INSTALL_INTERFACE:include>
 )
+ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs)
+rosidl_target_interfaces(tello_interface_node
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 install(TARGETS tello_interface_node
   DESTINATION lib/${PROJECT_NAME})
+
+ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

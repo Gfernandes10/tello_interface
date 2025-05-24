@@ -1,0 +1,4 @@
+string axis  # "x", "y", "z", "angular_z"
+int8 sine_id  # 1, 2, 3
+---
+bool success
