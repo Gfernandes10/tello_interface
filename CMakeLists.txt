@@ -17,14 +17,16 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
 
 add_executable(tello_interface_node src/tello_interface_node.cpp)
 target_include_directories(tello_interface_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
+
+target_link_libraries(tello_interface_node
+  rclcpp
+)
 
 install(TARGETS tello_interface_node
   DESTINATION lib/${PROJECT_NAME})
