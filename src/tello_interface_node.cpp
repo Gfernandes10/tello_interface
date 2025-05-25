@@ -15,6 +15,29 @@
 #include "tello_interface/srv/sine_command.hpp"
 
 class TelloInterfaceNode : public rclcpp::Node {
+  // === Variables ===
+  std::thread keyboard_thread_;
+  std::atomic<bool> running_;
+  std::thread sine_thread_;
+  std::atomic<bool> sine_running_;
+  std::mutex sine_mutex_;
+  std::condition_variable sine_cv_;
+  std::string sine_axis_ = "x"; // "x", "y", "z", "angular_z"
+  int sine_type_ = 1;
+  bool enable_keyboard_control = true;
+  
+  // === Parameters ===
+  
+  // === Publishers ===
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+  
+  // === Subscribers ===
+  // rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
+  
+  // === Services and Actions ===
+  rclcpp::Client<tello_msgs::srv::TelloAction>::SharedPtr tello_action_client_;
+  rclcpp::Service<tello_interface::srv::SineCommand>::SharedPtr sine_service_;
+
 public:
   TelloInterfaceNode() : Node("tello_interface_node"), running_(true), sine_running_(false) {
     // === Placeholders de parâmetros ===
@@ -58,27 +81,7 @@ public:
   }
 
 private:
-  // === Variables ===
-  std::thread keyboard_thread_;
-  std::atomic<bool> running_;
-  std::thread sine_thread_;
-  std::atomic<bool> sine_running_;
-  std::mutex sine_mutex_;
-  std::condition_variable sine_cv_;
-  std::string sine_axis_ = "x"; // "x", "y", "z", "angular_z"
-  int sine_type_ = 1;
 
-  // === Parameters ===
-
-  // === Publishers ===
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-
-  // === Subscribers ===
-  // rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
-
-  // === Services and Actions ===
-  rclcpp::Client<tello_msgs::srv::TelloAction>::SharedPtr tello_action_client_;
-  rclcpp::Service<tello_interface::srv::SineCommand>::SharedPtr sine_service_;
 
   /**
    * @brief Thread loop to read keyboard input and control the drone.
@@ -90,6 +93,8 @@ private:
   void keyboard_loop() {
     set_terminal_mode(false);
     geometry_msgs::msg::Twist current_twist;
+    current_twist = geometry_msgs::msg::Twist();
+    double speed = 0.05;
     while (running_) {
       fd_set set;
       struct timeval timeout;
@@ -98,33 +103,34 @@ private:
       timeout.tv_sec = 0;
       timeout.tv_usec = 1000;
       int rv = select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout);
-      current_twist = geometry_msgs::msg::Twist();
       if (rv > 0) {
         char c = getchar();
         // Interrompe qualquer senoide ao pressionar qualquer tecla
-        stop_sine();
-        if (c == 'w') { current_twist.linear.x = 0.1; }
-        else if (c == 's') { current_twist.linear.x = -0.1; }
-        else if (c == 'a') { current_twist.linear.y = 0.1;  }
-        else if (c == 'd') { current_twist.linear.y = -0.1; }
-        else if (c == 'i') { current_twist.linear.z = 0.1; }
-        else if (c == 'k') { current_twist.linear.z = -0.1; }
-        else if (c == 'j') { current_twist.angular.z = 0.1;}
-        else if (c == 'l') { current_twist.angular.z = -0.1;}
+        if (sine_running_){ stop_sine(); }
+        if (c == 'w') { current_twist.linear.x = speed; }
+        else if (c == 's') { current_twist.linear.x = -speed; }
+        else if (c == 'a') { current_twist.linear.y = speed;  }
+        else if (c == 'd') { current_twist.linear.y = -speed; }
+        else if (c == 'i') { current_twist.linear.z = speed; }
+        else if (c == ',') { current_twist.linear.z = -speed; }
+        else if (c == 'j') { current_twist.angular.z = speed;}
+        else if (c == 'l') { current_twist.angular.z = -speed;}
         else if (c == 'q') { running_ = false; break; }
         else if (c == 'e') { call_tello_action("takeoff"); }
         else if (c == 'c') { call_tello_action("land"); }
+        else if (c == 'k') {current_twist = geometry_msgs::msg::Twist(); }
+        enable_keyboard_control = true;
       }
       else if (rv == -1) {
         RCLCPP_ERROR(this->get_logger(), "Error reading from stdin");
         break;
       }
-      else if (rv == 0) {
-        // Timeout, no input
-        current_twist = geometry_msgs::msg::Twist();
+      if (enable_keyboard_control) {
+        // Publish the current twist command
+        // RCLCPP_INFO(this->get_logger(), "keyboard loop");
+        send_command(current_twist);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
-      send_command(current_twist);
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     set_terminal_mode(true);
   }
@@ -176,6 +182,7 @@ private:
     sine_axis_ = req->axis;
     sine_type_ = req->sine_id;
     sine_running_ = true;
+    enable_keyboard_control = false;
     sine_thread_ = std::thread(&TelloInterfaceNode::sine_loop, this);
     res->success = true;
   }
@@ -184,6 +191,7 @@ private:
     sine_running_ = false;
     sine_cv_.notify_all();
     if (sine_thread_.joinable()) sine_thread_.join();
+    // RCLCPP_INFO(this->get_logger(), "stop sine loop");
     send_command(geometry_msgs::msg::Twist());
   }
 
@@ -192,9 +200,9 @@ private:
     double t = 0.0;
     double dt = 1.0 / freq;
     rclcpp::Rate rate(freq);
+    double value = 0.0;
     while (sine_running_) {
       geometry_msgs::msg::Twist twist;
-      double value = 0.0;
       if (sine_type_ == 1) value = (0.1/4.5) * (3*std::sin(0.2*M_PI*t) + std::sin(0.6*M_PI*t) + 0.5*std::sin(M_PI*t));
       else if (sine_type_ == 2) value = 0.2 * std::sin(2*t);
       else if (sine_type_ == 3) value = 0.2 * std::sin(t) + 0.1 * std::sin(3*t);
@@ -203,11 +211,12 @@ private:
       else if (sine_axis_ == "y") twist.linear.y = value;
       else if (sine_axis_ == "z") twist.linear.z = value;
       else if (sine_axis_ == "angular_z") twist.angular.z = value;
+      // RCLCPP_INFO(this->get_logger(), "Sine loop");
       send_command(twist);
       t += dt;
       rate.sleep();
     }
-    send_command(geometry_msgs::msg::Twist());
+    // send_command(geometry_msgs::msg::Twist());
   }
 };
 

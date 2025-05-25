@@ -6,9 +6,9 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -23,24 +23,32 @@ find_package(tello_msgs REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SineCommand.srv"
 )
+
 
 add_executable(tello_interface_node src/tello_interface_node.cpp)
 add_dependencies(tello_interface_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 target_include_directories(tello_interface_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/../ros_utils>
   $<INSTALL_INTERFACE:include>
 )
-ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs)
+ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs Boost_FILESYSTEM)
 rosidl_target_interfaces(tello_interface_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 install(TARGETS tello_interface_node
   DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch/ 
+  DESTINATION share/${PROJECT_NAME}/launch)
+install(DIRECTORY plotjuggler/ 
+  DESTINATION share/${PROJECT_NAME}/plotjuggler)
 
 ament_export_dependencies(rosidl_default_runtime)
 
