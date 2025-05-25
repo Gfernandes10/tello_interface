@@ -10,9 +10,8 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
-
-// Serviço customizado para comando senoidal
 #include "tello_interface/srv/sine_command.hpp"
+#include "../ros_utils/csv_logger.h"
 
 class TelloInterfaceNode : public rclcpp::Node {
   // === Variables ===
@@ -23,6 +22,7 @@ class TelloInterfaceNode : public rclcpp::Node {
   std::mutex sine_mutex_;
   std::condition_variable sine_cv_;
   std::string sine_axis_ = "x"; // "x", "y", "z", "angular_z"
+  std::string command_topic_ = "/drone1/cmd_vel";
   int sine_type_ = 1;
   bool enable_keyboard_control = true;
   
@@ -38,15 +38,26 @@ class TelloInterfaceNode : public rclcpp::Node {
   rclcpp::Client<tello_msgs::srv::TelloAction>::SharedPtr tello_action_client_;
   rclcpp::Service<tello_interface::srv::SineCommand>::SharedPtr sine_service_;
 
+  // === Loggers ===
+  std::unique_ptr<CSVLogger> csv_logger_u_control_;
+  std::unique_ptr<CSVLogger> csv_logger_states_;
+
 public:
   TelloInterfaceNode() : Node("tello_interface_node"), running_(true), sine_running_(false) {
+    const char* workspace_name = std::getenv("MY_WORKSPACE_NAME");
+    if (workspace_name == nullptr)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Environment variable MY_WORKSPACE_NAME is not set.");
+        return;
+    }
+
     // === Placeholders de parâmetros ===
     // this->declare_parameter<std::string>("param_name", "default_value");
     
     
 
     // === Placeholders de publishers ===
-    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/drone1/cmd_vel", 10);
+    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(command_topic_, 10);
     
     // === Placeholders de subscribers ===
     // subscription_ = this->create_subscription<std_msgs::msg::String>(
@@ -66,11 +77,24 @@ public:
     //   std::bind(&TelloInterfaceNode::cancel_callback, this, std::placeholders::_1),
     //   std::bind(&TelloInterfaceNode::accept_goal_callback, this, std::placeholders::_1));
 
-    // Cliente para takeoff/land
+    // === Placeholders de clientes ===
     tello_action_client_ = this->create_client<tello_msgs::srv::TelloAction>("/drone1/tello_action");
 
-    // Thread para ler teclado
+    // === Placeholders de loggers ===
+    std::vector<std::string> header_u_control = std::vector<std::string>{"timestamp", 
+                                                                                "topic", 
+                                                                                "ux",  
+                                                                                "uy",  
+                                                                                "uz", 
+                                                                                "uyaw"};
+    csv_logger_u_control_ = std::make_unique<CSVLogger>(workspace_name, 
+                                                        "tello_interface", 
+                                                        "u_control", 
+                                                        header_u_control);  
+
+    // === Placeholders de timers ===
     keyboard_thread_ = std::thread(&TelloInterfaceNode::keyboard_loop, this);
+
     RCLCPP_INFO(this->get_logger(), "Tello Interface Node started! Use WASD para mover, T para decolar, L para pousar, Q para sair.");
   }
 
@@ -140,6 +164,13 @@ private:
    * @return void
    */
   void send_command(const geometry_msgs::msg::Twist &twist) {
+    std::vector<std::variant<std::string, double>> data_u_control = {std::to_string(this->now().seconds()), 
+                                                                    command_topic_, 
+                                                                    twist.linear.x, 
+                                                                    twist.linear.y,
+                                                                    twist.linear.z,
+                                                                    twist.angular.z};
+    csv_logger_u_control_->writeCSV(data_u_control);
     cmd_vel_pub_->publish(twist);
   }
 
