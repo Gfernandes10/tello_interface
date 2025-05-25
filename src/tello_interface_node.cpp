@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include "tello_interface/teleop_widget.h"
+#include <nav_msgs/msg/odometry.hpp>
 
 class TelloInterfaceNode : public rclcpp::Node {
   public:
@@ -30,6 +31,7 @@ class TelloInterfaceNode : public rclcpp::Node {
   std::condition_variable sine_cv_;
   std::string sine_axis_ = "x"; // "x", "y", "z", "angular_z"
   std::string command_topic_ = "/drone1/cmd_vel";
+  std::string filtered_pose_topic_ = "/drone1/filtered_pose";
   int sine_type_ = 1;
   bool enable_keyboard_control = true;
   
@@ -39,7 +41,7 @@ class TelloInterfaceNode : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
   
   // === Subscribers ===
-  // rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr filtered_pose_sub_;
   
   // === Services and Actions ===
   rclcpp::Client<tello_msgs::srv::TelloAction>::SharedPtr tello_action_client_;
@@ -48,6 +50,7 @@ class TelloInterfaceNode : public rclcpp::Node {
   // === Loggers ===
   std::unique_ptr<CSVLogger> csv_logger_u_control_;
   std::unique_ptr<CSVLogger> csv_logger_states_;
+  std::unique_ptr<CSVLogger> csv_logger_filtered_pose_;
 
 public:
   TelloInterfaceNode(bool use_gui = false) : Node("tello_interface_node"), running_(true), sine_running_(false) {
@@ -67,9 +70,9 @@ public:
     cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(command_topic_, 10);
     
     // === Placeholders de subscribers ===
-    // subscription_ = this->create_subscription<std_msgs::msg::String>(
-    //   "topic_name", 10,
-    //   std::bind(&TelloInterfaceNode::subscriber_callback, this, std::placeholders::_1));
+    filtered_pose_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+      filtered_pose_topic_, 10,
+      std::bind(&TelloInterfaceNode::filtered_pose_topic_callback, this, std::placeholders::_1));
 
     // === Placeholders de serviços ===
     sine_service_ = this->create_service<tello_interface::srv::SineCommand>(
@@ -97,7 +100,25 @@ public:
     csv_logger_u_control_ = std::make_unique<CSVLogger>(workspace_name, 
                                                         "tello_interface", 
                                                         "u_control", 
-                                                        header_u_control);  
+                                                        header_u_control);
+    std::vector<std::string> header_filtered_pose_ = std::vector<std::string>{"timestamp", 
+                                                                        "topic", 
+                                                                        "x",  
+                                                                        "dx",  
+                                                                        "y", 
+                                                                        "dy",
+                                                                        "z",
+                                                                        "dz",
+                                                                        "roll",
+                                                                        "pitch",
+                                                                        "yaw",
+                                                                        "p",  
+                                                                        "q",
+                                                                        "r"};
+    csv_logger_filtered_pose_ = std::make_unique<CSVLogger>(workspace_name,
+                                                        "tello_interface", 
+                                                        "filtered_pose", 
+                                                        header_filtered_pose_);                                                                    
 
     // === Placeholders de timers ===
     if (!use_gui) {
@@ -258,6 +279,44 @@ public:
       rate.sleep();
     }
     // send_command(geometry_msgs::msg::Twist());
+  }
+
+  /**
+   * @brief Callback function for the filtered pose topic (Odometry).
+   * @param msg The message received from the filtered pose topic.
+   * @return void
+   */
+  void filtered_pose_topic_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+    std::vector<std::variant<std::string, double>> data_filtered_pose = {
+      std::to_string(this->now().seconds()),
+      filtered_pose_topic_,
+      msg->pose.pose.position.x,
+      msg->twist.twist.linear.x,
+      msg->pose.pose.position.y,
+      msg->twist.twist.linear.y,
+      msg->pose.pose.position.z,
+      msg->twist.twist.linear.z,
+      0.0, // roll (placeholder)
+      0.0, // pitch (placeholder)
+      0.0, // yaw (placeholder)
+      msg->twist.twist.angular.x,
+      msg->twist.twist.angular.y,
+      msg->twist.twist.angular.z
+    };
+    // Extrai yaw, pitch, roll dos quaternions
+    const auto& q = msg->pose.pose.orientation;
+    double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
+    double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+    double yaw = std::atan2(siny_cosp, cosy_cosp);
+    double sinp = 2.0 * (q.w * q.y - q.z * q.x);
+    double pitch = std::abs(sinp) >= 1 ? std::copysign(M_PI / 2, sinp) : std::asin(sinp);
+    double sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z);
+    double cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y);
+    double roll = std::atan2(sinr_cosp, cosr_cosp);
+    data_filtered_pose[8] = roll;
+    data_filtered_pose[9] = pitch;
+    data_filtered_pose[10] = yaw;
+    csv_logger_filtered_pose_->writeCSV(data_filtered_pose);
   }
 };
 

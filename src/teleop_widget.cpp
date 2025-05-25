@@ -25,22 +25,22 @@ TeleopWidget::TeleopWidget(std::function<void(const geometry_msgs::msg::Twist&)>
 void TeleopWidget::keyPressEvent(QKeyEvent* event) {
     double speed = 0.05;
     bool changed = false;
-    if (is_sine_running_()) stop_sine_();
     switch (event->key()) {
-      case Qt::Key_W: current_twist_.linear.x = speed; changed = true; break;
-      case Qt::Key_S: current_twist_.linear.x = -speed; changed = true; break;
-      case Qt::Key_A: current_twist_.linear.y = speed; changed = true; break;
-      case Qt::Key_D: current_twist_.linear.y = -speed; changed = true; break;
-      case Qt::Key_I: current_twist_.linear.z = speed; changed = true; break;
-      case Qt::Key_K: current_twist_.linear.z = -speed; changed = true; break;
-      case Qt::Key_J: current_twist_.angular.z = 2* speed; changed = true; break;
-      case Qt::Key_L: current_twist_.angular.z = -2* speed; changed = true; break;
-      case Qt::Key_E: call_action_("takeoff"); break;
-      case Qt::Key_C: call_action_("land"); break;
-      case Qt::Key_Q: QApplication::quit(); break;
-      default: break;
+        case Qt::Key_W: current_twist_.linear.x = speed; changed = true; break;
+        case Qt::Key_S: current_twist_.linear.x = -speed; changed = true; break;
+        case Qt::Key_A: current_twist_.linear.y = speed; changed = true; break;
+        case Qt::Key_D: current_twist_.linear.y = -speed; changed = true; break;
+        case Qt::Key_I: current_twist_.linear.z = speed; changed = true; break;
+        case Qt::Key_K: current_twist_.linear.z = -speed; changed = true; break;
+        case Qt::Key_J: current_twist_.angular.z = 2* speed; changed = true; break;
+        case Qt::Key_L: current_twist_.angular.z = -2* speed; changed = true; break;
+        case Qt::Key_E: call_action_("takeoff"); break;
+        case Qt::Key_C: call_action_("land"); break;
+        case Qt::Key_Q: QApplication::quit(); break;
+        default: break;
     }
     if (changed) {
+        if (is_sine_running_()) stop_sine_();
         if (!cmd_timer_->isActive()) cmd_timer_->start();
         send_current_twist();
         key_active_ = true;
@@ -58,19 +58,16 @@ void TeleopWidget::keyReleaseEvent(QKeyEvent* event) {
       case Qt::Key_D:
         current_twist_.linear.y = 0.0; relevant = true; break;
       case Qt::Key_I:
-      case Qt::Key_Comma:
+      case Qt::Key_K:
         current_twist_.linear.z = 0.0; relevant = true; break;
       case Qt::Key_J:
       case Qt::Key_L:
         current_twist_.angular.z = 0.0; relevant = true; break;
-      case Qt::Key_K:
-        current_twist_ = geometry_msgs::msg::Twist(); relevant = true; break;
       default: break;
     }
     if (relevant) {
         send_current_twist();
         // Se todas as componentes forem zero, para o timer
-        qDebug("Key released");
         if (current_twist_.linear.x == 0.0 && current_twist_.linear.y == 0.0 && current_twist_.linear.z == 0.0 && current_twist_.angular.z == 0.0) {
             cmd_timer_->stop();
         }
