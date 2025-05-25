@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(tello_interface)
-message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+
+cmake_policy(SET CMP0071 NEW)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -24,13 +30,14 @@ find_package(action_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui)
+qt5_wrap_cpp(MOC_SRCS include/tello_interface/teleop_widget.h)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SineCommand.srv"
 )
 
-
-add_executable(tello_interface_node src/tello_interface_node.cpp)
+add_executable(tello_interface_node src/tello_interface_node.cpp src/teleop_widget.cpp ${MOC_SRCS})
 add_dependencies(tello_interface_node ${PROJECT_NAME}__rosidl_typesupport_cpp)
 target_include_directories(tello_interface_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -39,12 +46,14 @@ target_include_directories(tello_interface_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs Boost_FILESYSTEM)
+target_link_libraries(tello_interface_node Qt5::Widgets Qt5::Core Qt5::Gui)
 rosidl_target_interfaces(tello_interface_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 install(TARGETS tello_interface_node
   DESTINATION lib/${PROJECT_NAME})
 
+install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch/ 
   DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY plotjuggler/ 
@@ -54,12 +63,6 @@ ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 

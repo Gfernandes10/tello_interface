@@ -40,10 +40,22 @@ def generate_launch_description():
             output='screen',
             arguments=[
                 '--plugin', 'Ros2',
-               #  '--layout', os.path.join(
-               #      get_package_share_directory('tello_interface'),
-               #      'plotjuggler', 'layout.xml'
-               #  )
             ]
+        ),
+
+        Node(
+            package='tello_interface',
+            executable='tello_interface_node',
+            output='screen',
+            arguments=['--gui'],
+        ),
+
+        ExecuteProcess(
+        cmd=[
+            'rqt',
+            '--perspective-file',
+            os.path.join(get_package_share_directory('tello_interface'), 'plotjuggler', 'tello.perspective')
+        ],
+        output='screen'
         ),
     ])

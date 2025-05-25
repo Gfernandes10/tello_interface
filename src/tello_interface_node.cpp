@@ -12,8 +12,15 @@
 #include <condition_variable>
 #include "tello_interface/srv/sine_command.hpp"
 #include "../ros_utils/csv_logger.h"
+#include <QApplication>
+#include <QWidget>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QVBoxLayout>
+#include "tello_interface/teleop_widget.h"
 
 class TelloInterfaceNode : public rclcpp::Node {
+  public:
   // === Variables ===
   std::thread keyboard_thread_;
   std::atomic<bool> running_;
@@ -43,7 +50,7 @@ class TelloInterfaceNode : public rclcpp::Node {
   std::unique_ptr<CSVLogger> csv_logger_states_;
 
 public:
-  TelloInterfaceNode() : Node("tello_interface_node"), running_(true), sine_running_(false) {
+  TelloInterfaceNode(bool use_gui = false) : Node("tello_interface_node"), running_(true), sine_running_(false) {
     const char* workspace_name = std::getenv("MY_WORKSPACE_NAME");
     if (workspace_name == nullptr)
     {
@@ -93,9 +100,12 @@ public:
                                                         header_u_control);  
 
     // === Placeholders de timers ===
-    keyboard_thread_ = std::thread(&TelloInterfaceNode::keyboard_loop, this);
-
-    RCLCPP_INFO(this->get_logger(), "Tello Interface Node started! Use WASD para mover, T para decolar, L para pousar, Q para sair.");
+    if (!use_gui) {
+      keyboard_thread_ = std::thread(&TelloInterfaceNode::keyboard_loop, this);
+      RCLCPP_INFO(this->get_logger(), "Tello Interface Node started! Use WASD para mover, T para decolar, L para pousar, Q para sair.");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Tello Interface Node started em modo GUI! Use o teclado na janela para controlar.");
+    }
   }
 
   ~TelloInterfaceNode() override {
@@ -104,7 +114,7 @@ public:
     if (keyboard_thread_.joinable()) keyboard_thread_.join();
   }
 
-private:
+public:
 
 
   /**
@@ -253,9 +263,31 @@ private:
 
 int main(int argc, char ** argv)
 {
+  bool use_gui = false;
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--gui") use_gui = true;
+  }
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<TelloInterfaceNode>();
-  rclcpp::spin(node);
-  rclcpp::shutdown();
-  return 0;
+  if (use_gui) {
+    QApplication app(argc, argv);
+    auto node = std::make_shared<TelloInterfaceNode>(true);
+    TeleopWidget widget(
+      [node](const geometry_msgs::msg::Twist& t){ node->send_command(t); },
+      [node](const std::string& cmd){ node->call_tello_action(cmd); },
+      [node](){ node->stop_sine(); },
+      [node](){ return node->sine_running_.load(); }
+    );
+    widget.show();
+    std::thread spin_thread([&](){ rclcpp::spin(node); });
+    int ret = app.exec();
+    node->running_ = false;
+    spin_thread.join();
+    rclcpp::shutdown();
+    return ret;
+  } else {
+    auto node = std::make_shared<TelloInterfaceNode>(false);
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
+  }
 }
