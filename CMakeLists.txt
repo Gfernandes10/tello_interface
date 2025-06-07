@@ -32,6 +32,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui)
 find_package(nav_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 qt5_wrap_cpp(MOC_SRCS include/tello_interface/teleop_widget.h)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -46,7 +47,7 @@ target_include_directories(tello_interface_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/../ros_utils>
   $<INSTALL_INTERFACE:include>
 )
-ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs Boost_FILESYSTEM nav_msgs)
+ament_target_dependencies(tello_interface_node rclcpp geometry_msgs tello_msgs Boost_FILESYSTEM nav_msgs std_srvs)
 target_link_libraries(tello_interface_node Qt5::Widgets Qt5::Core Qt5::Gui)
 rosidl_target_interfaces(tello_interface_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")

@@ -3,33 +3,33 @@
  <tabbed_widget name="Main Window" parent="main_window">
   <Tab containers="1" tab_name="U">
    <Container>
-    <DockSplitter count="4" sizes="0.249797;0.25061;0.249797;0.249797" orientation="-">
+    <DockSplitter orientation="-" sizes="0.250847;0.249153;0.250847;0.249153" count="4">
      <DockArea name="...">
-      <plot flip_x="false" style="Lines" mode="TimeSeries" flip_y="false">
-       <range left="378.293477" top="0.064300" right="383.287668" bottom="-0.064300"/>
+      <plot style="Lines" mode="TimeSeries" flip_x="false" flip_y="false">
+       <range top="0.005000" left="0.000000" right="4.998510" bottom="-0.205000"/>
        <limitY/>
-       <curve color="#1f77b4" name="/drone1/cmd_vel/linear/x"/>
+       <curve name="/tello/cmd_vel/linear/x" color="#1f77b4"/>
       </plot>
      </DockArea>
      <DockArea name="...">
-      <plot flip_x="false" style="Lines" mode="TimeSeries" flip_y="false">
-       <range left="378.293477" top="0.100000" right="383.287668" bottom="-0.100000"/>
+      <plot style="Lines" mode="TimeSeries" flip_x="false" flip_y="false">
+       <range top="0.100000" left="0.000000" right="4.998510" bottom="-0.100000"/>
        <limitY/>
-       <curve color="#d62728" name="/drone1/cmd_vel/linear/y"/>
+       <curve name="/tello/cmd_vel/linear/y" color="#d62728"/>
       </plot>
      </DockArea>
      <DockArea name="...">
-      <plot flip_x="false" style="Lines" mode="TimeSeries" flip_y="false">
-       <range left="378.293477" top="0.100000" right="383.287668" bottom="-0.100000"/>
+      <plot style="Lines" mode="TimeSeries" flip_x="false" flip_y="false">
+       <range top="0.210000" left="0.000000" right="4.998510" bottom="-0.210000"/>
        <limitY/>
-       <curve color="#1ac938" name="/drone1/cmd_vel/linear/z"/>
+       <curve name="/tello/cmd_vel/linear/z" color="#1ac938"/>
       </plot>
      </DockArea>
      <DockArea name="...">
-      <plot flip_x="false" style="Lines" mode="TimeSeries" flip_y="false">
-       <range left="378.293477" top="0.100000" right="383.287668" bottom="-0.100000"/>
+      <plot style="Lines" mode="TimeSeries" flip_x="false" flip_y="false">
+       <range top="0.100000" left="0.000000" right="4.998510" bottom="-0.100000"/>
        <limitY/>
-       <curve color="#ff7f0e" name="/drone1/cmd_vel/angular/z"/>
+       <curve name="/tello/cmd_vel/angular/z" color="#ff7f0e"/>
       </plot>
      </DockArea>
     </DockSplitter>
@@ -74,6 +74,7 @@
  </Plugins>
  <!-- - - - - - - - - - - - - - - -->
  <previouslyLoaded_Datafiles/>
+ <previouslyLoaded_Streamer name="ROS2 Topic Subscriber"/>
  <!-- - - - - - - - - - - - - - - -->
  <customMathEquations/>
  <snippets/>

@@ -19,6 +19,7 @@
 #include <QVBoxLayout>
 #include "tello_interface/teleop_widget.h"
 #include <nav_msgs/msg/odometry.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 class TelloInterfaceNode : public rclcpp::Node {
   public:
@@ -30,8 +31,8 @@ class TelloInterfaceNode : public rclcpp::Node {
   std::mutex sine_mutex_;
   std::condition_variable sine_cv_;
   std::string sine_axis_ = "x"; // "x", "y", "z", "angular_z"
-  std::string command_topic_ = "/drone1/cmd_vel";
-  std::string filtered_pose_topic_ = "/drone1/filtered_pose";
+  std::string command_topic_ = "/tello/cmd_vel";
+  std::string filtered_pose_topic_ = "/tello/filtered_pose";
   int sine_type_ = 1;
   bool enable_keyboard_control = true;
   
@@ -44,6 +45,8 @@ class TelloInterfaceNode : public rclcpp::Node {
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr filtered_pose_sub_;
   
   // === Services and Actions ===
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr takeoff_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr land_client_;
   rclcpp::Client<tello_msgs::srv::TelloAction>::SharedPtr tello_action_client_;
   rclcpp::Service<tello_interface::srv::SineCommand>::SharedPtr sine_service_;
 
@@ -88,6 +91,8 @@ public:
     //   std::bind(&TelloInterfaceNode::accept_goal_callback, this, std::placeholders::_1));
 
     // === Placeholders de clientes ===
+    takeoff_client_ = this->create_client<std_srvs::srv::Trigger>("/tello/takeoff");
+    land_client_ = this->create_client<std_srvs::srv::Trigger>("/tello/land");
     tello_action_client_ = this->create_client<tello_msgs::srv::TelloAction>("/drone1/tello_action");
 
     // === Placeholders de loggers ===
@@ -149,7 +154,7 @@ public:
     set_terminal_mode(false);
     geometry_msgs::msg::Twist current_twist;
     current_twist = geometry_msgs::msg::Twist();
-    double speed = 0.05;
+    double speed = 0.1;
     while (running_) {
       fd_set set;
       struct timeval timeout;
@@ -195,7 +200,10 @@ public:
    * @return void
    */
   void send_command(const geometry_msgs::msg::Twist &twist) {
-    std::vector<std::variant<std::string, double>> data_u_control = {std::to_string(this->now().seconds()), 
+    std::ostringstream timestamp_stream;
+    timestamp_stream << std::fixed << std::setprecision(6) << this->now().seconds();
+    std::string timestamp = timestamp_stream.str();
+    std::vector<std::variant<std::string, double>> data_u_control = {timestamp, 
                                                                     command_topic_, 
                                                                     twist.linear.x, 
                                                                     twist.linear.y,
@@ -211,13 +219,29 @@ public:
    * @return void
    */
   void call_tello_action(const std::string &cmd) {
-    if (!tello_action_client_->wait_for_service(std::chrono::seconds(1))) {
-      RCLCPP_WARN(this->get_logger(), "Tello action service not available");
-      return;
+    if (cmd == "takeoff") {
+      if (!takeoff_client_->wait_for_service(std::chrono::seconds(1))) {
+        RCLCPP_WARN(this->get_logger(), "Takeoff service not available");
+        return;
+      }
+      auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+      takeoff_client_->async_send_request(request);
+    } else if (cmd == "land") {
+      if (!land_client_->wait_for_service(std::chrono::seconds(1))) {
+        RCLCPP_WARN(this->get_logger(), "Land service not available");
+        return;
+      }
+      auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+      land_client_->async_send_request(request);
+    } else {
+      if (!tello_action_client_->wait_for_service(std::chrono::seconds(1))) {
+        RCLCPP_WARN(this->get_logger(), "Tello action service not available");
+        return;
+      }
+      auto request = std::make_shared<tello_msgs::srv::TelloAction::Request>();
+      request->cmd = cmd;
+      tello_action_client_->async_send_request(request);
     }
-    auto request = std::make_shared<tello_msgs::srv::TelloAction::Request>();
-    request->cmd = cmd;
-    auto result = tello_action_client_->async_send_request(request);
   }
 
   /**
@@ -265,7 +289,7 @@ public:
     double value = 0.0;
     while (sine_running_) {
       geometry_msgs::msg::Twist twist;
-      if (sine_type_ == 1) value = (0.1/4.5) * (3*std::sin(0.2*M_PI*t) + std::sin(0.6*M_PI*t) + 0.5*std::sin(M_PI*t));
+      if (sine_type_ == 1) value = (0.4/4.5) * (3*std::sin(0.2*M_PI*t) + std::sin(0.6*M_PI*t) + 0.5*std::sin(M_PI*t));
       else if (sine_type_ == 2) value = 0.2 * std::sin(2*t);
       else if (sine_type_ == 3) value = 0.2 * std::sin(t) + 0.1 * std::sin(3*t);
 

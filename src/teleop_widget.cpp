@@ -23,7 +23,7 @@ TeleopWidget::TeleopWidget(std::function<void(const geometry_msgs::msg::Twist&)>
 }
 
 void TeleopWidget::keyPressEvent(QKeyEvent* event) {
-    double speed = 0.05;
+    double speed = 0.2;
     bool changed = false;
     switch (event->key()) {
         case Qt::Key_W: current_twist_.linear.x = speed; changed = true; break;
