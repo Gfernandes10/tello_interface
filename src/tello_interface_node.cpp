@@ -282,7 +282,7 @@ public:
   }
 
   void sine_loop() {
-    int freq = 100;
+    int freq = 50;
     double t = 0.0;
     double dt = 1.0 / freq;
     rclcpp::Rate rate(freq);
@@ -290,8 +290,8 @@ public:
     while (sine_running_) {
       geometry_msgs::msg::Twist twist;
       if (sine_type_ == 1) value = (0.4/4.5) * (3*std::sin(0.2*M_PI*t) + std::sin(0.6*M_PI*t) + 0.5*std::sin(M_PI*t));
-      else if (sine_type_ == 2) value = 0.2 * std::sin(2*t);
-      else if (sine_type_ == 3) value = 0.2 * std::sin(t) + 0.1 * std::sin(3*t);
+      else if (sine_type_ == 2) value = (0.2)*(std::sin(0.2*M_PI*t) + std::sin(0.4*M_PI*t));
+      else if (sine_type_ == 3) value = (std::sin(t) >= 0 ? 0.3 : -0.3);
 
       if (sine_axis_ == "x") twist.linear.x = value;
       else if (sine_axis_ == "y") twist.linear.y = value;
