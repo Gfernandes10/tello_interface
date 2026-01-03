@@ -35,6 +35,11 @@ class TelloInterfaceNode : public rclcpp::Node {
   std::string filtered_pose_topic_ = "/tello/filtered_pose";
   int sine_type_ = 1;
   bool enable_keyboard_control = true;
+
+  // Service name parameters (defaults can be overridden via ROS2 parameters / launch files)
+  std::string takeoff_service_name_ = "/tello/takeoff";
+  std::string land_service_name_ = "/tello/land";
+  std::string tello_action_service_name_ = "/drone1/tello_action";
   
   // === Parameters ===
   
@@ -66,7 +71,21 @@ public:
 
     // === Placeholders de parâmetros ===
     // this->declare_parameter<std::string>("param_name", "default_value");
-    
+
+    // declare topic parameters so they can be set from launch files
+    this->declare_parameter<std::string>("command_topic", command_topic_);
+    this->declare_parameter<std::string>("filtered_pose_topic", filtered_pose_topic_);
+    // declare parameters for service names so they can be set via launch files
+    this->declare_parameter<std::string>("takeoff_service_name", takeoff_service_name_);
+    this->declare_parameter<std::string>("land_service_name", land_service_name_);
+    this->declare_parameter<std::string>("tello_action_service_name", tello_action_service_name_);
+
+    // get parameter values (these will override the defaults above if provided)
+    this->get_parameter("command_topic", command_topic_);
+    this->get_parameter("filtered_pose_topic", filtered_pose_topic_);
+    this->get_parameter("takeoff_service_name", takeoff_service_name_);
+    this->get_parameter("land_service_name", land_service_name_);
+    this->get_parameter("tello_action_service_name", tello_action_service_name_);
     
 
     // === Placeholders de publishers ===
@@ -91,9 +110,11 @@ public:
     //   std::bind(&TelloInterfaceNode::accept_goal_callback, this, std::placeholders::_1));
 
     // === Placeholders de clientes ===
-    takeoff_client_ = this->create_client<std_srvs::srv::Trigger>("/tello/takeoff");
-    land_client_ = this->create_client<std_srvs::srv::Trigger>("/tello/land");
-    tello_action_client_ = this->create_client<tello_msgs::srv::TelloAction>("/drone1/tello_action");
+
+
+    takeoff_client_ = this->create_client<std_srvs::srv::Trigger>(takeoff_service_name_);
+    land_client_ = this->create_client<std_srvs::srv::Trigger>(land_service_name_);
+    tello_action_client_ = this->create_client<tello_msgs::srv::TelloAction>(tello_action_service_name_);
 
     // === Placeholders de loggers ===
     std::vector<std::string> header_u_control = std::vector<std::string>{"timestamp", 
@@ -219,29 +240,36 @@ public:
    * @return void
    */
   void call_tello_action(const std::string &cmd) {
-    if (cmd == "takeoff") {
-      if (!takeoff_client_->wait_for_service(std::chrono::seconds(1))) {
-        RCLCPP_WARN(this->get_logger(), "Takeoff service not available");
-        return;
-      }
-      auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-      takeoff_client_->async_send_request(request);
-    } else if (cmd == "land") {
-      if (!land_client_->wait_for_service(std::chrono::seconds(1))) {
-        RCLCPP_WARN(this->get_logger(), "Land service not available");
-        return;
-      }
-      auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-      land_client_->async_send_request(request);
-    } else {
-      if (!tello_action_client_->wait_for_service(std::chrono::seconds(1))) {
-        RCLCPP_WARN(this->get_logger(), "Tello action service not available");
-        return;
-      }
-      auto request = std::make_shared<tello_msgs::srv::TelloAction::Request>();
-      request->cmd = cmd;
-      tello_action_client_->async_send_request(request);
+    if (!tello_action_client_->wait_for_service(std::chrono::seconds(1))) {
+      RCLCPP_WARN(this->get_logger(), "Tello action service not available");
+      return;
     }
+    auto request = std::make_shared<tello_msgs::srv::TelloAction::Request>();
+    request->cmd = cmd;
+    tello_action_client_->async_send_request(request);
+    // if (cmd == "takeoff") {
+    //   if (!takeoff_client_->wait_for_service(std::chrono::seconds(1))) {
+    //     RCLCPP_WARN(this->get_logger(), "Takeoff service not available");
+    //     return;
+    //   }
+    //   auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+    //   takeoff_client_->async_send_request(request);
+    // } else if (cmd == "land") {
+    //   if (!land_client_->wait_for_service(std::chrono::seconds(1))) {
+    //     RCLCPP_WARN(this->get_logger(), "Land service not available");
+    //     return;
+    //   }
+    //   auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+    //   land_client_->async_send_request(request);
+    // } else {
+    //   if (!tello_action_client_->wait_for_service(std::chrono::seconds(1))) {
+    //     RCLCPP_WARN(this->get_logger(), "Tello action service not available");
+    //     return;
+    //   }
+    //   auto request = std::make_shared<tello_msgs::srv::TelloAction::Request>();
+    //   request->cmd = cmd;
+    //   tello_action_client_->async_send_request(request);
+    // }
   }
 
   /**
